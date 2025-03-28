@@ -7,6 +7,8 @@ import os
 # Path to save Excel file in Downloads
 downloads_path = Path.home() / "Downloads"
 output_excel = downloads_path / "Tables_14_to_24.xlsx"
+
+# Set up excel writer
 writer = pd.ExcelWriter(output_excel, engine='openpyxl')
 
 # Regex to detect table titles (e.g., "Table 14: ...")
@@ -15,12 +17,13 @@ table_heading_pattern = re.compile(r"Table\s+(\d+):\s+(.*)")
 # Input PDF file
 pdf_file = "cclf_ip_508_v39.pdf"
 
-# Control flags
-collecting = False
+# State tracking variables
+collecting = False # Check if we're in valid table
 current_table_number = None
 current_table_title = None
 current_rows = []
 
+# Open and process the PDF
 with pdfplumber.open(pdf_file) as pdf:
     for i, page in enumerate(pdf.pages):
         text = page.extract_text()
@@ -30,8 +33,8 @@ with pdfplumber.open(pdf_file) as pdf:
         for line in text.splitlines():
             match = table_heading_pattern.match(line)
             if match:
-                table_num = int(match.group(1))
-                table_title = match.group(2)
+                table_num = int(match.group(1))     #Set table number
+                table_title = match.group(2)        #Set title text
 
                 # If we were collecting a table and we just hit a new one
                 if collecting and current_table_number and current_rows:
@@ -47,7 +50,7 @@ with pdfplumber.open(pdf_file) as pdf:
                     current_table_number = table_num
                     current_table_title = table_title
                 else:
-                    collecting = False
+                    collecting = False  #Outside target table range
 
         # If we're in a valid table range, keep collecting rows
         if collecting:
@@ -62,13 +65,14 @@ with pdfplumber.open(pdf_file) as pdf:
                             and "claim field label" in normalized_row[1]
                             and "claim field name" in normalized_row[2]
                     ):
-                        continue
+                        continue    #Skip if header row
 
                     # Skip non-table text blocks or "paragraphs"
                     non_empty_cells = [cell for cell in normalized_row if cell]
                     if len(non_empty_cells) < 4:
                         continue  # likely not a data row
 
+                    #Otherwise, keep good data
                     current_rows.append(row)
 
 # Save last table after final page
@@ -79,4 +83,4 @@ if collecting and current_table_number and current_rows:
     df.to_excel(writer, sheet_name=sheet_name, index=False)
 
 writer.close()
-print(f"✅ Extracted Tables 14–24 to {output_excel}")
+print(f"Extracted Tables 14–24 to {output_excel}")
